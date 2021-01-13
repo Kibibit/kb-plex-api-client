@@ -1,8 +1,22 @@
 import axios, { AxiosInstance } from 'axios';
 import { concat, get } from 'lodash';
 
+type TKeyValue = { [key: string]: string | number };
 interface IWindowOpen {
   (url?: string, target?: string, features?: string, replace?: boolean): Window | null;
+}
+
+export interface IChannel {
+  number: number;
+}
+export interface IDvrDevice {
+  key: string;
+}
+
+export interface IDvr {
+  key: string;
+  Device: IDvrDevice[];
+
 }
 
 export interface IOptions {
@@ -18,7 +32,6 @@ export class PlexApiClient {
   private httpClient: AxiosInstance;
   public token: string;
   private headers: { [key: string]: string };
-	// private errorHandler: ErrorHandler;
 
   constructor(opts: IOptions) {
     this.appName = opts.appName;
@@ -123,7 +136,7 @@ export class PlexApiClient {
     return { token };
   }
 
-  async Get(path: string, optionalHeaders: any = {}) {
+  async Get(path: string, optionalHeaders: TKeyValue = {}) {
     const res = await this.httpClient.get(path, { headers: optionalHeaders });
     if (res.status !== 200) {
       throw new Error(`Plex 'Get' request failed. URL: ${path}`);
@@ -131,7 +144,7 @@ export class PlexApiClient {
 
     return res.data.MediaContainer;
   }
-  async Put(path: string, params: any = {}, optionalHeaders: any = {}) {
+  async Put(path: string, params: TKeyValue = {}, optionalHeaders: TKeyValue = {}) {
     const res = await this.httpClient.put(path, {}, { headers: optionalHeaders, params });
 
     if (res.status !== 200) {
@@ -141,7 +154,7 @@ export class PlexApiClient {
     return res.data;
   }
 
-  async Post(path: string, params: any = {}, optionalHeaders: any = {}) {
+  async Post(path: string, params: TKeyValue = {}, optionalHeaders: TKeyValue = {}) {
     const res = await this.httpClient.put(path, {}, { headers: optionalHeaders, params });
 
     if (res.status !== 200) {
@@ -153,13 +166,13 @@ export class PlexApiClient {
 
   async GetDVRS() {
     const result = await this.Get('/livetv/dvrs');
-    let dvrs = result.Dvr;
-    dvrs = typeof dvrs === 'undefined' ? [] : dvrs;
+    let dvrs = result.Dvr as IDvr[];
+    dvrs = dvrs || [];
     return dvrs;
   }
 
-  async refreshGuide(_dvrs: any) {
-    const dvrs = typeof _dvrs !== 'undefined' ? _dvrs : await this.GetDVRS();
+  async refreshGuide(_dvrs: IDvr[]) {
+    const dvrs = _dvrs || await this.GetDVRS();
 
     for (let i = 0; i < dvrs.length; i++) {
       try {
@@ -170,19 +183,18 @@ export class PlexApiClient {
     }
   }
 
-  async refreshChannels(channels: any, _dvrs: any) {
+  async refreshChannels(channels: IChannel[], _dvrs: IDvr[]) {
     const dvrs = typeof _dvrs !== 'undefined' ? _dvrs : await this.GetDVRS();
-    const channelNumbers = channels.map((channel: any) => channel.number);
-    const qs: any = {};
+    const channelNumbers = channels.map((channel) => channel.number);
+    const qs: TKeyValue = {};
 
     qs.channelsEnabled = channelNumbers.join(',');
-    channelNumbers.forEach((channelNum: number) => {
+    channelNumbers.forEach((channelNum) => {
       qs[`channelMapping[${ channelNum }]`] = channelNum;
       qs[`channelMappingByKey[${ channelNum }]`] = channelNum;
     });
-    let devices = dvrs.map((dvr: any) => dvr.Device);
-    devices = concat([], ...devices);
+    const devices = concat([], ...dvrs.map((dvr) => dvr.Device));
 
-    await Promise.all(devices.map((device: any) => this.Put(`/media/grabbers/devices/${ device.key }/channelmap`, qs)));
+    await Promise.all(devices.map((device) => this.Put(`/media/grabbers/devices/${ device.key }/channelmap`, qs)));
   }
 }
