@@ -1,6 +1,10 @@
 import axios, { AxiosInstance } from 'axios';
 import { concat, get } from 'lodash';
 
+interface IWindowOpen {
+  (url?: string, target?: string, features?: string, replace?: boolean): Window | null;
+}
+
 export interface IOptions {
   token: string;
   protocol?: string;
@@ -10,8 +14,15 @@ export interface IOptions {
 }
 export class PlexApiClient {
   private httpClient: AxiosInstance;
-  private token: string;
+  public token: string;
   private headers: { [key: string]: string };
+  private static authHeaders = {
+    'Accept': 'application/json',
+    'X-Plex-Product': 'PseudoTV',
+    'X-Plex-Version': 'Plex OAuth',
+    'X-Plex-Client-Identifier': 'rg14zekk3pa5zp4safjwaa8z',
+    'X-Plex-Model': 'Plex OAuth'
+  };
 	// private errorHandler: ErrorHandler;
 
   constructor(opts: IOptions) {
@@ -59,6 +70,41 @@ export class PlexApiClient {
       }
       return response;
     }, (error) => Promise.reject(error));
+  }
+
+  static async webLogin(plex: Partial<IOptions>, open: IWindowOpen): Promise<PlexApiClient> {
+    const headers = PlexApiClient.authHeaders;
+    const { data } = await axios.post('https://plex.tv/api/v2/pins?strong=true', {}, { headers });
+    open('https://app.plex.tv/auth/#!?clientID=rg14zekk3pa5zp4safjwaa8z&context[device][version]=Plex OAuth&context[device][model]=Plex OAuth&code=' + data.code + '&context[device][product]=Plex Web');
+
+    return await PlexApiClient.waitForWindowResponse(plex, data);
+  }
+
+  static async waitForWindowResponse(plex: Partial<IOptions>, plexLogin: { id: string; }): Promise<PlexApiClient> {
+    const headers = PlexApiClient.authHeaders;
+    return new Promise((resolve, reject) => {
+      let limit = 120000 // 2 minute time out limit
+      const poll = 2000 // check every 2 seconds for token
+      const interval = setInterval(async () => {
+        const { data } = await axios.get(`https://plex.tv/api/v2/pins/${ plexLogin.id }`, { headers });
+        limit -= poll;
+        if (limit <= 0) {
+          clearInterval(interval);
+          reject(new Error('Timed Out. Failed to sign in a timely manner (2 mins)'));
+        }
+
+        if (data.authToken !== null) {
+          clearInterval(interval);
+          plex.token = data.authToken;
+          const client = new PlexApiClient(plex as IOptions);
+          // client.token = pinsRes.authToken
+          const _res = await client.Get('/')
+          data.name = _res.friendlyName;
+          console.log(_res);
+          resolve(client);
+        }
+      }, poll);
+    });
   }
 
   async SignIn(login: string, password: string) {
