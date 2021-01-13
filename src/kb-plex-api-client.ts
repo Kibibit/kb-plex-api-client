@@ -97,10 +97,8 @@ export class PlexApiClient {
           clearInterval(interval);
           plex.token = data.authToken;
           const client = new PlexApiClient(plex as IOptions);
-          // client.token = pinsRes.authToken
           const _res = await client.Get('/')
           data.name = _res.friendlyName;
-          console.log(_res);
           resolve(client);
         }
       }, poll);
