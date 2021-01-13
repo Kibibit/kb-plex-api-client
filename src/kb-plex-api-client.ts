@@ -6,6 +6,7 @@ interface IWindowOpen {
 }
 
 export interface IOptions {
+  appName: string;
   token: string;
   protocol?: string;
   host?: string;
@@ -13,26 +14,21 @@ export interface IOptions {
 
 }
 export class PlexApiClient {
+  public appName: string;
   private httpClient: AxiosInstance;
   public token: string;
   private headers: { [key: string]: string };
-  private static authHeaders = {
-    'Accept': 'application/json',
-    'X-Plex-Product': 'PseudoTV',
-    'X-Plex-Version': 'Plex OAuth',
-    'X-Plex-Client-Identifier': 'rg14zekk3pa5zp4safjwaa8z',
-    'X-Plex-Model': 'Plex OAuth'
-  };
 	// private errorHandler: ErrorHandler;
 
   constructor(opts: IOptions) {
+    this.appName = opts.appName;
     this.token = opts.token;
 
     this.headers = {
       'Accept': 'application/json',
-      'X-Plex-Device': 'PseudoTV',
-      'X-Plex-Device-Name': 'PseudoTV',
-      'X-Plex-Product': 'PseudoTV',
+      'X-Plex-Device': this.appName,
+      'X-Plex-Device-Name': this.appName,
+      'X-Plex-Product': this.appName,
       'X-Plex-Version': '0.1',
       'X-Plex-Client-Identifier': 'rg14zekk3pa5zp4safjwaa8z',
       'X-Plex-Platform': 'Chrome',
@@ -72,8 +68,18 @@ export class PlexApiClient {
     }, (error) => Promise.reject(error));
   }
 
+  private static authHeaders(appName = 'kbPlexApiClient') {
+    return {
+      'Accept': 'application/json',
+      'X-Plex-Product': appName,
+      'X-Plex-Version': 'Plex OAuth',
+      'X-Plex-Client-Identifier': 'rg14zekk3pa5zp4safjwaa8z',
+      'X-Plex-Model': 'Plex OAuth'
+    };
+  }
+
   static async webLogin(plex: Partial<IOptions>, open: IWindowOpen): Promise<PlexApiClient> {
-    const headers = PlexApiClient.authHeaders;
+    const headers = PlexApiClient.authHeaders(plex.appName);
     const { data } = await axios.post('https://plex.tv/api/v2/pins?strong=true', {}, { headers });
     open('https://app.plex.tv/auth/#!?clientID=rg14zekk3pa5zp4safjwaa8z&context[device][version]=Plex OAuth&context[device][model]=Plex OAuth&code=' + data.code + '&context[device][product]=Plex Web');
 
@@ -81,7 +87,7 @@ export class PlexApiClient {
   }
 
   static async waitForWindowResponse(plex: Partial<IOptions>, plexLogin: { id: string; }): Promise<PlexApiClient> {
-    const headers = PlexApiClient.authHeaders;
+    const headers = PlexApiClient.authHeaders(plex.appName);
     return new Promise((resolve, reject) => {
       let limit = 120000 // 2 minute time out limit
       const poll = 2000 // check every 2 seconds for token
