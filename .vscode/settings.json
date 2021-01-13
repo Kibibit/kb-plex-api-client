@@ -15,5 +15,8 @@
         "titleBar.inactiveBackground": "#2d004e99",
         "titleBar.inactiveForeground": "#e7e7e799"
     },
-    "peacock.color": "#2d004e"
+    "peacock.color": "#2d004e",
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false
 }
